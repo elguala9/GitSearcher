@@ -1,0 +1,22 @@
+# .NET build output
+bin/
+obj/
+
+# .NET executables at root
+*.exe
+*.dll
+*.pdb
+
+# Rust build output
+ui/target/
+
+# VS Code
+.vscode/
+
+# User-specific files
+*.user
+*.suo
+.vs/
+
+# Distribution (generated binaries)
+dist/

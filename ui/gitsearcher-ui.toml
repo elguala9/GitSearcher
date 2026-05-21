@@ -1,0 +1,20 @@
+# Configurazione GitSearcher UI.
+# Tutti i campi sono opzionali: se manca il file o un campo, vengono usati i default.
+
+# Comando per invocare l'eseguibile GitSearcher.
+# Puoi mettere:
+#   - solo il nome (es. "GitSearcher.exe") se è nel PATH
+#   - un percorso relativo (risolto rispetto a questo file di config)
+#   - un percorso assoluto
+# Default: "GitSearcher.exe"
+executable = "GitSearcher.exe"
+
+# Argomenti extra da passare sempre all'eseguibile (oltre a path e -o).
+# Esempio: ["--include-hidden"]
+extra_args = []
+
+# Percorso da scansionare di default all'avvio. Lasciare vuoto per usare la home utente.
+default_path = ""
+
+# Se true, include cartelle nascoste / node_modules nella scansione.
+include_hidden = false
