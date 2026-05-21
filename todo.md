@@ -1,60 +1,46 @@
-# GitSearcher - TODO
+# TODO — Pubblicazione su winget
 
-Tool CLI in C# (.NET) per cercare ricorsivamente tutti i repository git sotto un percorso e generare un report JSON con posizione e data dell'ultima attività.
+## 1. Preparare il binario
+- [ ] Build self-contained win-x64:
+  ```
+  dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
+  ```
+- [ ] Testare il `.exe` risultante su una macchina pulita (senza .NET installato)
+- [ ] Decidere se distribuire solo il backend C# o anche la UI Rust (o uno zip con entrambi)
 
-## Funzionalità richieste
-- [x] Accettare un percorso come argomento (opzionale: default = directory corrente)
-- [x] Scansione ricorsiva alla ricerca di cartelle `.git`
-- [x] Determinare la data dell'ultima attività git per ogni repository
-- [x] Esportare i risultati in un file JSON
-- [x] Compilare in eseguibile `.exe` autonomo (Windows x64)
+## 2. GitHub Release
+- [ ] Scegliere un `PackageIdentifier` univoco — convenzione: `<Editore>.<AppName>` es. `Parresia.GitSearcher`
+- [ ] Creare un tag semantico (`v1.0.0`) e una Release su GitHub
+- [ ] Build self-contained linux-x64:
+  ```
+  dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true
+  ```
+- [ ] Allegare entrambi i binari (`.exe` per Windows, binario senza estensione per Linux) alla Release
+- [ ] Calcolare il **SHA256** del file allegato:
+  ```powershell
+  Get-FileHash .\GitSearcher.exe -Algorithm SHA256
+  ```
 
-## Dettagli implementativi
-- [x] Progetto console .NET (`GitSearcher.csproj`)
-- [x] Argomenti CLI:
-  - `[path]` (posizionale, opzionale)
-  - `-o, --output <file>` per scegliere il file JSON di output (default: `git-repos.json` nella dir corrente)
-  - `--include-hidden` per includere cartelle nascoste/`node_modules`
-- [x] Per ogni `.git` trovato:
-  - [x] percorso assoluto del repository (cartella che contiene `.git`)
-  - [x] data ultima attività (priorità: timestamp `.git/logs/HEAD` → file più recente in `.git/refs` → ultima modifica di `.git`)
-  - [x] eventuale branch corrente (da `.git/HEAD`)
-- [x] Gestione errori: cartelle senza permessi vengono saltate con log a stderr
-- [x] Skip di default: `node_modules`, cartelle che iniziano con `.` diverse da `.git`
-- [x] Output JSON ordinato per data discendente
+## 3. Creare i manifest
+- [ ] Installare **winget-create**:
+  ```
+  winget install Microsoft.WingetCreate
+  ```
+- [ ] Generare i manifest puntando all'URL della Release:
+  ```
+  wingetcreate new https://github.com/<user>/GitSearcher/releases/download/v1.0.0/GitSearcher.exe
+  ```
+  Il tool compila interattivamente i campi e genera i 3 file YAML richiesti.
 
-## Build
-- [x] `dotnet publish -c Release -r win-x64 --self-contained false` (framework-dependent, snello)
-- [ ] Opzionale: `--self-contained true /p:PublishSingleFile=true` per binario unico distribuibile
+## 4. Inviare la PR a winget-pkgs
+- [ ] Fork di `https://github.com/microsoft/winget-pkgs`
+- [ ] Aggiungere i manifest in `manifests/p/Parresia/GitSearcher/1.0.0/`
+- [ ] Aprire PR con titolo standard: `Add Parresia.GitSearcher version 1.0.0`
+- [ ] Aspettare la validazione automatica (bot + CI); poi la review umana (può richiedere giorni)
 
-## Uso
-```
-GitSearcher.exe                       # scansiona la cartella corrente
-GitSearcher.exe C:\Dev                # scansiona C:\Dev
-GitSearcher.exe C:\Dev -o repos.json  # scansiona e salva in repos.json
-```
+## 5. Aggiornamenti futuri
+- [ ] Per ogni nuova versione: aggiornare URL + SHA256 e aprire una nuova PR con `wingetcreate update`
 
-## GUI Rust (`ui/`)
-- [x] Progetto `gitsearcher-ui` con eframe/egui
-- [x] File di config TOML (`gitsearcher-ui.toml`) cercato accanto all'exe e nel cwd
-  - `executable` (default `"GitSearcher.exe"` → funziona se è nel PATH)
-  - `extra_args`, `default_path`, `include_hidden`
-  - Path relativi risolti rispetto al file di config o alla UI exe; assoluti rispettati; fallback al PATH di sistema
-- [x] Risoluzione executable robusta: assoluto → relativo a config → relativo a UI → PATH
-- [x] Input percorso + dialogo "Sfoglia…" (rfd)
-- [x] Scansione su thread separato, log stderr in tempo reale
-- [x] Tabella ordinabile (egui_extras) con filtro, doppio clic apre in Esplora risorse
-- [x] Mostra branch, data ultima attività (orario locale), fonte
-- [x] Costruito in release: `ui/target/release/gitsearcher-ui.exe`
+---
 
-## Esempio output JSON
-```json
-[
-  {
-    "path": "C:\\Dev\\MyRepo",
-    "branch": "main",
-    "lastActivityUtc": "2026-05-21T09:12:43Z",
-    "source": "logs/HEAD"
-  }
-]
-```
+> **Nota:** se l'app non ha ancora un publisher verificato, il manifest verrà accettato ma il package apparirà come "non verificato" finché non richiedi la verifica del publisher a Microsoft.
