@@ -1,0 +1,14 @@
+# Configurazione GitSearcher UI.
+# Tutti i campi sono opzionali: se manca il file o un campo, vengono usati i default.
+
+# Percorso dell'eseguibile GitSearcher (relativo a questo file oppure assoluto).
+executable = "GitSearcher.exe"
+
+# Argomenti extra da passare sempre all'eseguibile.
+extra_args = []
+
+# Percorso da scansionare di default all'avvio. Lasciare vuoto per usare la home utente.
+default_path = ""
+
+# Se true, include cartelle nascoste nella scansione.
+include_hidden = false
