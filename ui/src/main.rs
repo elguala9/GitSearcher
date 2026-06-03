@@ -2,6 +2,7 @@
 
 mod app;
 mod config;
+mod git_log;
 mod models;
 mod scanner;
 mod utils;
