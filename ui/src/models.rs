@@ -21,3 +21,16 @@ pub(crate) enum ScanMsg {
     Log(String),
     Done(Result<Vec<RepoInfo>, String>),
 }
+
+#[derive(Debug, Clone)]
+pub(crate) struct CommitInfo {
+    pub(crate) short_hash: String,
+    pub(crate) full_hash: String,
+    pub(crate) author: String,
+    pub(crate) date: String,
+    pub(crate) subject: String,
+}
+
+pub(crate) enum HistoryMsg {
+    Done(Result<Vec<CommitInfo>, String>),
+}

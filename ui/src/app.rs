@@ -6,7 +6,8 @@ use eframe::egui;
 use egui_extras::{Column, TableBuilder};
 
 use crate::config::Config;
-use crate::models::{RepoInfo, ScanMsg, SortBy};
+use crate::git_log::load_history;
+use crate::models::{CommitInfo, HistoryMsg, RepoInfo, ScanMsg, SortBy};
 use crate::scanner::{resolve_executable, run_scan};
 use crate::utils::{dirs_home, format_time, sort_header};
 
@@ -26,6 +27,14 @@ pub(crate) struct App {
     scanning: bool,
     last_error: Option<String>,
     rx: Option<Receiver<ScanMsg>>,
+
+    history_open: bool,
+    history_repo: Option<String>,
+    history_branch: Option<String>,
+    history_commits: Vec<CommitInfo>,
+    history_loading: bool,
+    history_error: Option<String>,
+    history_rx: Option<Receiver<HistoryMsg>>,
 }
 
 impl App {
@@ -54,6 +63,13 @@ impl App {
             scanning: false,
             last_error: None,
             rx: None,
+            history_open: false,
+            history_repo: None,
+            history_branch: None,
+            history_commits: Vec::new(),
+            history_loading: false,
+            history_error: None,
+            history_rx: None,
         }
     }
 
@@ -153,11 +169,148 @@ impl App {
         }
         self.apply_sort();
     }
+
+    fn open_history(&mut self, repo: &RepoInfo, ctx: &egui::Context) {
+        self.history_open = true;
+        self.history_repo = Some(repo.path.clone());
+        self.history_branch = repo.branch.clone();
+        self.history_commits.clear();
+        self.history_error = None;
+        self.history_loading = true;
+
+        let (tx, rx) = channel::<HistoryMsg>();
+        self.history_rx = Some(rx);
+        load_history(repo.path.clone(), tx, ctx.clone());
+    }
+
+    fn drain_history(&mut self) {
+        let Some(rx) = self.history_rx.take() else { return };
+        let mut keep = true;
+        loop {
+            match rx.try_recv() {
+                Ok(HistoryMsg::Done(result)) => {
+                    self.history_loading = false;
+                    keep = false;
+                    match result {
+                        Ok(commits) => self.history_commits = commits,
+                        Err(e) => self.history_error = Some(e),
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+        if keep {
+            self.history_rx = Some(rx);
+        }
+    }
+
+    fn show_history_window(&mut self, ctx: &egui::Context) {
+        if !self.history_open {
+            return;
+        }
+        if self.history_loading {
+            ctx.request_repaint_after(std::time::Duration::from_millis(120));
+        }
+
+        let mut open = self.history_open;
+        let title = match &self.history_repo {
+            Some(p) => format!(
+                "Storia — {}",
+                Path::new(p)
+                    .file_name()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| p.clone())
+            ),
+            None => "Storia".to_string(),
+        };
+
+        egui::Window::new(title)
+            .open(&mut open)
+            .resizable(true)
+            .default_width(720.0)
+            .default_height(440.0)
+            .collapsible(true)
+            .show(ctx, |ui| {
+                if let Some(p) = &self.history_repo {
+                    ui.horizontal(|ui| {
+                        ui.weak(p);
+                        if let Some(b) = &self.history_branch {
+                            ui.separator();
+                            ui.label(format!("branch: {b}"));
+                        }
+                    });
+                }
+                ui.separator();
+
+                if self.history_loading {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label("Caricamento commit…");
+                    });
+                    return;
+                }
+
+                if let Some(err) = &self.history_error {
+                    ui.colored_label(egui::Color32::LIGHT_RED, err);
+                    return;
+                }
+
+                if self.history_commits.is_empty() {
+                    ui.weak("Nessun commit trovato.");
+                    return;
+                }
+
+                ui.label(format!("Ultimi {} commit:", self.history_commits.len()));
+                ui.add_space(4.0);
+
+                let mut copy_hash: Option<String> = None;
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        for c in &self.history_commits {
+                            ui.horizontal(|ui| {
+                                let hash = ui.add(
+                                    egui::Label::new(
+                                        egui::RichText::new(&c.short_hash)
+                                            .monospace()
+                                            .color(egui::Color32::from_rgb(0xE5, 0xA5, 0x4B)),
+                                    )
+                                    .sense(egui::Sense::click()),
+                                );
+                                if hash.clicked() {
+                                    copy_hash = Some(c.full_hash.clone());
+                                }
+                                hash.on_hover_text("Clic per copiare l'hash completo");
+                                ui.weak(&c.date);
+                                ui.separator();
+                                ui.label(&c.subject);
+                            });
+                            ui.horizontal(|ui| {
+                                ui.add_space(4.0);
+                                ui.small(format!("— {}", c.author));
+                            });
+                            ui.add_space(2.0);
+                            ui.separator();
+                        }
+                    });
+
+                if let Some(h) = copy_hash {
+                    ui.output_mut(|o| o.copied_text = h);
+                }
+            });
+
+        self.history_open = open;
+        if !self.history_open {
+            self.history_rx = None;
+            self.history_loading = false;
+        }
+    }
 }
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.drain_messages();
+        self.drain_history();
         if self.scanning {
             ctx.request_repaint_after(std::time::Duration::from_millis(120));
         }
@@ -254,6 +407,7 @@ impl eframe::App for App {
                 .collect();
 
             let mut clicked_path: Option<String> = None;
+            let mut history_request: Option<usize> = None;
             let mut sort_request: Option<SortBy> = None;
 
             TableBuilder::new(ui)
@@ -264,7 +418,7 @@ impl eframe::App for App {
                 .column(Column::initial(130.0).at_least(80.0))
                 .column(Column::remainder().at_least(200.0))
                 .column(Column::initial(110.0).at_least(80.0))
-                .column(Column::initial(80.0).at_least(60.0))
+                .column(Column::initial(150.0).at_least(120.0))
                 .header(22.0, |mut header| {
                     header.col(|ui| {
                         if ui
@@ -326,14 +480,17 @@ impl eframe::App for App {
                                         .truncate(),
                                 );
                                 if resp.double_clicked() {
-                                    clicked_path = Some(repo.path.clone());
+                                    history_request = Some(idx);
                                 }
-                                resp.on_hover_text("Doppio clic per aprire in Esplora risorse");
+                                resp.on_hover_text("Doppio clic per vedere la storia dei commit");
                             });
                             row.col(|ui| {
                                 ui.label(repo.source.as_deref().unwrap_or("-"));
                             });
                             row.col(|ui| {
+                                if ui.small_button("Storia").clicked() {
+                                    history_request = Some(idx);
+                                }
                                 if ui.small_button("Apri").clicked() {
                                     clicked_path = Some(repo.path.clone());
                                 }
@@ -348,6 +505,10 @@ impl eframe::App for App {
             if let Some(p) = clicked_path {
                 let _ = open::that(&p);
             }
+            if let Some(idx) = history_request {
+                let repo = self.repos[idx].clone();
+                self.open_history(&repo, ctx);
+            }
 
             if self.repos.is_empty() && !self.scanning {
                 ui.vertical_centered(|ui| {
@@ -356,5 +517,7 @@ impl eframe::App for App {
                 });
             }
         });
+
+        self.show_history_window(ctx);
     }
 }
