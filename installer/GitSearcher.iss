@@ -1,5 +1,5 @@
 #define MyAppName "GitSearcher"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.1.1"
 #define MyAppPublisher "Parresia"
 #define MyAppURL "https://github.com/elguala9/GitSearcher"
 #define MyAppExeName "gitsearcher-ui.exe"
