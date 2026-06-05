@@ -21,3 +21,4 @@ ui/target/
 # Distribution (generated binaries)
 dist/
 _publish
+publish
