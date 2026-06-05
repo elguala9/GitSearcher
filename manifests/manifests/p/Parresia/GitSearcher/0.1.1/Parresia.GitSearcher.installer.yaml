@@ -1,0 +1,13 @@
+# Created using wingetcreate 1.12.8.0
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
+
+PackageIdentifier: Parresia.GitSearcher
+PackageVersion: 0.1.1
+InstallerType: inno
+Installers:
+- Architecture: x64
+  InstallerUrl: https://github.com/elguala9/GitSearcher/releases/download/v0.1.1/GitSearcher-Setup-0.1.1.exe
+  InstallerSha256: 580B1970A067215E47C696DF954A81DF28E8E571A7912AAB0F5F889B8FDEBF4A
+ManifestType: installer
+ManifestVersion: 1.12.0
+ReleaseDate: 2026-06-05
